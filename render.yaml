@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: gomoku-h5
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: "10000"
