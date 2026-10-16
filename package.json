@@ -1,0 +1,12 @@
+{
+  "name": "gomoku-h5",
+  "version": "1.0.0",
+  "description": "微信可分享的 H5 五子棋联机对战（Node + WebSocket）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
