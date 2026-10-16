@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>五子棋 · 好友对战</title>
+<meta name="description" content="和微信好友实时对战的五子棋，点开链接就能一起下。">
+<!-- 微信里分享链接时的卡片预览 -->
+<meta property="og:title" content="五子棋 · 好友对战">
+<meta property="og:description" content="点开就能和好友实时下五子棋，无需下载。">
+<meta property="og:image" content="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=gomoku">
+<meta property="og:type" content="website">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :root { --bg:#0f1320; --card:#1a2133; --accent:#ffd166; --black:#1b1f2a; --line:#c79b6b; }
+  html, body { margin:0; padding:0; height:100%; background:var(--bg); color:#e8eefc;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; overflow:hidden; }
+  .screen { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:flex-start; padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 16px); }
+  .hidden { display:none !important; }
+  h1 { font-size:26px; margin:28px 0 4px; letter-spacing:2px; }
+  .sub { color:#8a96b3; font-size:13px; margin-bottom:24px; text-align:center; line-height:1.6; }
+  .panel { width:100%; max-width:420px; background:var(--card); border-radius:16px; padding:18px; margin-bottom:14px; }
+  .btn { display:block; width:100%; border:none; border-radius:12px; padding:14px; font-size:17px; font-weight:700;
+    color:#10131f; background:var(--accent); cursor:pointer; margin-top:10px; transition:transform .08s; }
+  .btn:active { transform:scale(.97); }
+  .btn.ghost { background:#2a3450; color:#e8eefc; }
+  .btn.red { background:#ff5d6c; color:#fff; }
+  .row { display:flex; gap:10px; }
+  .row .btn { margin-top:0; }
+  input.code { width:100%; padding:13px; font-size:20px; letter-spacing:6px; text-align:center; text-transform:uppercase;
+    border-radius:12px; border:1px solid #34405e; background:#0f1524; color:#fff; margin-top:6px; }
+  .label { font-size:13px; color:#8a96b3; margin:6px 2px 0; }
+  /* 游戏页 */
+  #game { justify-content:flex-start; }
+  .topbar { width:100%; max-width:460px; display:flex; align-items:center; justify-content:space-between;
+    padding:8px 4px; font-size:13px; gap:8px; }
+  .roomtag { background:#2a3450; padding:6px 10px; border-radius:8px; font-weight:700; letter-spacing:2px; }
+  .tools { display:flex; gap:6px; }
+  .tools button { border:none; background:#2a3450; color:#e8eefc; border-radius:8px; padding:7px 10px; font-size:13px; cursor:pointer; }
+  .tools button:active { background:#36436a; }
+  #board { background:#e3b878; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,.4); touch-action:none; }
+  .status { width:100%; max-width:460px; text-align:center; font-size:15px; margin:10px 0 4px; min-height:22px; }
+  .status b { color:var(--accent); }
+  .emoji-bar { width:100%; max-width:460px; display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px; }
+  .emoji-bar button { font-size:22px; background:#222b42; border:none; border-radius:10px; padding:6px 9px; cursor:pointer; }
+  .emoji-bar button:active { background:#33405f; }
+  .float-emoji { position:absolute; font-size:40px; pointer-events:none; animation:floatUp 1.6s ease-out forwards; z-index:50; }
+  @keyframes floatUp { 0%{opacity:0; transform:translateY(20px) scale(.6);} 20%{opacity:1;} 100%{opacity:0; transform:translateY(-90px) scale(1.2);} }
+  /* 覆盖层 */
+  .overlay { position:absolute; inset:0; background:rgba(8,11,20,.82); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; z-index:100; padding:20px; }
+  .overlay .big { font-size:34px; font-weight:800; margin-bottom:8px; }
+  .overlay .small { color:#aab4d0; margin-bottom:22px; text-align:center; line-height:1.6; }
+  /* 分享面板 */
+  .share-link { display:flex; gap:8px; margin-top:8px; }
+  .share-link input { flex:1; padding:10px; border-radius:8px; border:1px solid #34405e; background:#0f1524; color:#cdd7f0; font-size:12px; }
+  .share-link button { border:none; background:var(--accent); color:#10131f; border-radius:8px; padding:0 14px; font-weight:700; }
+  #qr { width:150px; height:150px; background:#fff; border-radius:10px; margin:10px auto 0; display:block; }
+  .winline { position:absolute; pointer-events:none; }
+  .toast { position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.8);
+    padding:10px 16px; border-radius:10px; font-size:14px; z-index:120; opacity:0; transition:opacity .2s; }
+  .toast.show { opacity:1; }
+</style>
+</head>
+<body>
+
+<!-- 首页 -->
+<div id="home" class="screen">
+  <h1>五子棋</h1>
+  <div class="sub">和微信好友实时对战 · 点开链接就能一起下<br>黑棋先手，五子连珠即胜</div>
+
+  <div class="panel">
+    <button class="btn" id="btnCreate">创建房间</button>
+    <div class="label">创建后会生成房间号与分享链接，发给好友即可开局</div>
+  </div>
+
+  <div class="panel">
+    <div class="label">输入好友发来的 4 位房间号加入：</div>
+    <input class="code" id="joinCode" maxlength="4" placeholder="ABCD" inputmode="text">
+    <button class="btn ghost" id="btnJoin">加入房间</button>
+  </div>
+
+  <div class="panel" style="font-size:12px;color:#8a96b3;line-height:1.7">
+    💡 玩法：创建房间 → 点「分享」把链接/二维码发到微信 → 好友点开自动进房间。<br>
+    支持悔棋协商、表情互动、认输、再来一局。无需下载，网页即玩。
+  </div>
+</div>
+
+<!-- 游戏页 -->
+<div id="game" class="screen hidden">
+  <div class="topbar">
+    <span class="roomtag" id="roomTag">房间 ----</span>
+    <span id="connState" style="color:#7CFC9B">● 已连接</span>
+    <div class="tools">
+      <button id="btnUndo">悔棋</button>
+      <button id="btnResign">认输</button>
+      <button id="btnQuit">退出</button>
+    </div>
+  </div>
+
+  <canvas id="board"></canvas>
+
+  <div class="status" id="status">等待好友加入…</div>
+
+  <div class="emoji-bar" id="emojiBar"></div>
+
+  <!-- 等待/分享面板 -->
+  <div class="panel hidden" id="sharePanel" style="max-width:420px">
+    <div style="font-weight:700;margin-bottom:4px">把房间分享给好友 👇</div>
+    <div style="font-size:12px;color:#8a96b3;margin-bottom:6px">好友点开链接或扫二维码，自动进入本房间</div>
+    <div class="share-link">
+      <input id="shareLink" readonly>
+      <button id="btnCopy">复制</button>
+    </div>
+    <img id="qr" alt="房间二维码">
+  </div>
+
+  <!-- 结算覆盖层 -->
+  <div class="overlay hidden" id="overOverlay">
+    <div class="big" id="overTitle">你赢了！</div>
+    <div class="small" id="overSub"></div>
+    <button class="btn" id="btnAgain" style="max-width:260px">再来一局</button>
+    <button class="btn ghost" id="btnBack" style="max-width:260px">返回首页</button>
+  </div>
+
+  <!-- 断线提示 -->
+  <div class="overlay hidden" id="lostOverlay">
+    <div class="big">连接断开</div>
+    <div class="small">正在尝试重新连接…<br>若好友也离开，房间将在 10 分钟后回收</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var N = 15;
+  var ws = null, myColor = 0, myPid = null, roomId = null, state = null, name = '我';
+  var wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  var size = 0, margin = 0, cell = 0;
+
+  // ---------- 音效（Web Audio 程序化合成，无需音频文件）----------
+  var actx = null;
+  function audioInit() {
+    if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+    if (actx && actx.state === 'suspended') actx.resume();
+  }
+  function beep(freq, dur, type, vol, slide) {
+    if (!actx) return;
+    var t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(1, slide), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  function sndClick() { beep(680, 0.06, 'triangle', 0.18, 520); }
+  function sndWin() { [523, 659, 784, 1046].forEach(function (f, i) { setTimeout(function () { beep(f, 0.18, 'triangle', 0.22); }, i * 95); }); }
+  function sndLose() { [440, 330, 247].forEach(function (f, i) { setTimeout(function () { beep(f, 0.22, 'sawtooth', 0.16); }, i * 130); }); }
+  function sndMsg() { beep(900, 0.08, 'sine', 0.12, 1200); }
+
+  // ---------- WebSocket ----------
+  function connect(onOpen) {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      if (onOpen && ws.readyState === WebSocket.OPEN) onOpen(); return;
+    }
+    ws = new WebSocket(wsProto + '://' + location.host);
+    ws.onopen = function () { setConn(true); if (onOpen) onOpen(); };
+    ws.onclose = function () { setConn(false); if (roomId) { showLost(true); setTimeout(function () { connect(function () { send({ type: 'join', roomId: roomId, name: name }); }); }, 1500); } };
+    ws.onmessage = function (ev) { onMsg(JSON.parse(ev.data)); };
+  }
+  function send(obj) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+  function setConn(ok) { var e = document.getElementById('connState'); if (!e) return; e.textContent = ok ? '● 已连接' : '● 断开'; e.style.color = ok ? '#7CFC9B' : '#ff5d6c'; }
+
+  function colorOf() {
+    if (!state || !myPid) return myColor;
+    var p = state.players.find(function (x) { return x.id === myPid; });
+    return p ? p.color : myColor;
+  }
+  function onMsg(m) {
+    if (m.type === 'created') {
+      roomId = m.roomId; myPid = m.pid; state = m.state; myColor = colorOf(); showGame(); updateShare(); render();
+    } else if (m.type === 'joined') {
+      roomId = roomId || (state && state.id); myPid = m.pid; state = m.state; myColor = colorOf(); showGame(); render();
+    } else if (m.type === 'state') {
+      state = m.state; roomId = state.id; myColor = colorOf(); render();
+      if (state.status === 'over') { showOver(); }
+    } else if (m.type === 'error') {
+      toast(m.msg || '出错了');
+    } else if (m.type === 'emoji') {
+      floatEmoji(m.text); sndMsg();
+    }
+  }
+
+  // ---------- 首页动作 ----------
+  document.getElementById('btnCreate').onclick = function () {
+    audioInit(); name = '黑棋';
+    connect(function () { send({ type: 'create', name: name }); });
+  };
+  document.getElementById('btnJoin').onclick = function () {
+    audioInit();
+    var code = (document.getElementById('joinCode').value || '').trim().toUpperCase();
+    if (code.length < 1) { toast('请输入房间号'); return; }
+    name = '白棋';
+    connect(function () { send({ type: 'join', roomId: code, name: name }); });
+  };
+  document.getElementById('joinCode').addEventListener('input', function (e) {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+
+  // ---------- 游戏页动作 ----------
+  document.getElementById('btnUndo').onclick = function () {
+    if (!state || state.status !== 'playing') return;
+    if (state.undoPending && state.undoFrom !== myColor) { send({ type: 'undo_respond', accept: true }); return; }
+    send({ type: 'undo_request' }); toast('已发送悔棋请求，等待对方同意');
+  };
+  document.getElementById('btnResign').onclick = function () {
+    if (!state || state.status !== 'playing') return;
+    if (confirm('确定认输吗？')) { send({ type: 'resign' }); }
+  };
+  document.getElementById('btnQuit').onclick = function () {
+    if (confirm('退出当前房间？')) { location.hash = ''; location.reload(); }
+  };
+  document.getElementById('btnAgain').onclick = function () { send({ type: 'restart' }); hideOver(); };
+  document.getElementById('btnBack').onclick = function () { location.hash = ''; location.reload(); };
+  document.getElementById('btnCopy').onclick = function () {
+    var link = document.getElementById('shareLink'); link.select();
+    try { navigator.clipboard.writeText(link.value); toast('链接已复制，去微信粘贴给好友'); }
+    catch (e) { document.execCommand('copy'); toast('链接已复制'); }
+  };
+
+  // 表情栏
+  var EMOJIS = ['😀', '👍', '🔥', '😂', '🙏', '👎', '⏰', '💪', '😎', '🤝'];
+  var bar = document.getElementById('emojiBar');
+  EMOJIS.forEach(function (e) {
+    var b = document.createElement('button'); b.textContent = e;
+    b.onclick = function () { audioInit(); send({ type: 'emoji', text: e }); floatEmoji(e); };
+    bar.appendChild(b);
+  });
+
+  // ---------- 渲染 ----------
+  function showGame() {
+    document.getElementById('home').classList.add('hidden');
+    document.getElementById('game').classList.remove('hidden');
+    document.getElementById('roomTag').textContent = '房间 ' + (roomId || '----');
+    resize();
+  }
+  function showOver() {
+    if (!state || state.status !== 'over') return;
+    var ov = document.getElementById('overOverlay');
+    var title = document.getElementById('overTitle');
+    var sub = document.getElementById('overSub');
+    if (state.winner === 0) { title.textContent = '平局'; }
+    else if (state.winner === myColor) { title.textContent = '你赢了！🎉'; sndWin(); }
+    else { title.textContent = '你输了'; sndLose(); }
+    var me = state.players.find(function (p) { return p.color === myColor; });
+    sub.textContent = '本局结束 · 点击「再来一局」继续（交换黑白，败方先手）';
+    ov.classList.remove('hidden');
+  }
+  function hideOver() { document.getElementById('overOverlay').classList.add('hidden'); }
+  function showLost(s) { document.getElementById('lostOverlay').classList.toggle('hidden', !s); }
+
+  function resize() {
+    var w = Math.min(window.innerWidth - 24, 460);
+    size = w; margin = size * 0.05; cell = (size - 2 * margin) / (N - 1);
+    canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
+    canvas.width = size * dpr; canvas.height = size * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+  window.addEventListener('resize', resize);
+
+  function toXY(r, c) { return [margin + c * cell, margin + r * cell]; }
+  function fromXY(x, y) {
+    var c = Math.round((x - margin) / cell), r = Math.round((y - margin) / cell);
+    if (r < 0 || r >= N || c < 0 || c >= N) return null;
+    return { r: r, c: c };
+  }
+
+  function render() {
+    if (!state) return;
+    // 棋盘底
+    ctx.fillStyle = '#e3b878'; ctx.fillRect(0, 0, size, size);
+    // 网格
+    ctx.strokeStyle = 'rgba(90,60,30,.85)'; ctx.lineWidth = 1;
+    for (var i = 0; i < N; i++) {
+      var a = toXY(i, 0), b = toXY(i, N - 1);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      var c2 = toXY(0, i), d = toXY(N - 1, i);
+      ctx.beginPath(); ctx.moveTo(c2[0], c2[1]); ctx.lineTo(d[0], d[1]); ctx.stroke();
+    }
+    // 星位
+    var stars = [[3, 3], [3, 11], [11, 3], [11, 11], [7, 7]];
+    ctx.fillStyle = 'rgba(90,60,30,.9)';
+    stars.forEach(function (s) { var p = toXY(s[0], s[1]); ctx.beginPath(); ctx.arc(p[0], p[1], 3.2, 0, Math.PI * 2); ctx.fill(); });
+    // 棋子
+    var last = state.moves.length ? state.moves[state.moves.length - 1] : null;
+    var rad = cell * 0.42;
+    for (var r = 0; r < N; r++) for (var c = 0; c < N; c++) {
+      var v = state.board[r * N + c]; if (!v) continue;
+      drawStone(r, c, v);
+    }
+    // 最后一手标记
+    if (last) {
+      var lp = toXY(last.r, last.c);
+      ctx.strokeStyle = '#ff3b3b'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(lp[0], lp[1], rad * 0.32, 0, Math.PI * 2); ctx.stroke();
+    }
+    // 获胜连线
+    if (state.status === 'over' && state.winLine && state.winLine.length) {
+      var p0 = toXY(state.winLine[0][0], state.winLine[0][1]);
+      var p1 = toXY(state.winLine[state.winLine.length - 1][0], state.winLine[state.winLine.length - 1][1]);
+      ctx.strokeStyle = '#ff2e2e'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      ctx.lineCap = 'butt';
+      state.winLine.forEach(function (w) { var wp = toXY(w[0], w[1]); ctx.strokeStyle = '#ff2e2e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(wp[0], wp[1], rad * 0.5, 0, Math.PI * 2); ctx.stroke(); });
+    }
+    updateStatus();
+  }
+
+  function drawStone(r, c, v) {
+    var p = toXY(r, c), rad = cell * 0.42;
+    var g = ctx.createRadialGradient(p[0] - rad * 0.3, p[1] - rad * 0.3, rad * 0.1, p[0], p[1], rad);
+    if (v === 1) { g.addColorStop(0, '#5a6172'); g.addColorStop(1, '#15181f'); }
+    else { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#c4ccd8'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  function updateStatus() {
+    var el = document.getElementById('status');
+    if (!state) return;
+    var opp = state.players.find(function (p) { return p.color !== myColor; });
+    var me = state.players.find(function (p) { return p.color === myColor; });
+    if (state.status === 'waiting' || state.players.length < 2) {
+      el.innerHTML = '等待好友加入… 把房间号 <b>' + state.id + '</b> 或链接发给好友';
+      document.getElementById('sharePanel').classList.remove('hidden');
+      updateShare();
+      return;
+    }
+    document.getElementById('sharePanel').classList.add('hidden');
+    if (state.status === 'over') {
+      el.innerHTML = state.winner === myColor ? '🎉 你赢了' : (state.winner === 0 ? '平局' : '你输了');
+      return;
+    }
+    var turnTxt = state.turn === myColor ? '轮到你落子' : '对方思考中…';
+    var myName = myColor === 1 ? '黑棋' : '白棋';
+    var oppName = opp ? (opp.name || (opp.color === 1 ? '黑棋' : '白棋')) : '对方';
+    var oppOn = opp && opp.online ? '在线' : '离线';
+    el.innerHTML = '你是 <b>' + myName + '</b> · ' + turnTxt + ' · 对手(' + oppName + ') ' + oppOn;
+    // 悔棋协商提示
+    if (state.undoPending) {
+      if (state.undoFrom === myColor) el.innerHTML += ' · 已请求悔棋';
+      else el.innerHTML += ' · 对方请求悔棋（点「悔棋」同意）';
+    }
+  }
+
+  function updateShare() {
+    var link = location.origin + location.pathname + '#room=' + (roomId || '');
+    document.getElementById('shareLink').value = link;
+    document.getElementById('qr').src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(link);
+  }
+
+  // 落子输入
+  canvas.addEventListener('pointerdown', function (e) {
+    if (!state || state.status !== 'playing') return;
+    if (state.turn !== myColor) { toast('还没轮到你'); return; }
+    var rect = canvas.getBoundingClientRect();
+    var pos = fromXY(e.clientX - rect.left, e.clientY - rect.top);
+    if (!pos) return;
+    if (state.board[pos.r * N + pos.c] !== 0) return;
+    audioInit(); sndClick();
+    send({ type: 'place', r: pos.r, c: pos.c });
+  });
+
+  // 表情浮动
+  function floatEmoji(txt) {
+    var d = document.createElement('div'); d.className = 'float-emoji'; d.textContent = txt;
+    d.style.left = (40 + Math.random() * 60) + '%'; d.style.top = '60%';
+    document.getElementById('game').appendChild(d);
+    setTimeout(function () { d.remove(); }, 1600);
+  }
+
+  // Toast
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1800);
+  }
+
+  // ---------- 启动：支持 ?demo 预览 / #room 自动加入 ----------
+  function boot() {
+    var params = new URLSearchParams(location.search);
+    var hash = new URLSearchParams(location.hash.replace('#', ''));
+    if (params.has('demo')) { demoMode(); return; }
+    var auto = hash.get('room');
+    if (auto) {
+      name = '白棋'; roomId = auto.toUpperCase();
+      connect(function () { send({ type: 'join', roomId: roomId, name: name }); });
+      document.getElementById('home').classList.add('hidden');
+      document.getElementById('game').classList.remove('hidden');
+    }
+  }
+  function demoMode() {
+    document.getElementById('home').classList.add('hidden');
+    document.getElementById('game').classList.remove('hidden');
+    myColor = 1; roomId = 'DEMO';
+    // 摆一个样例棋盘 + 一条获胜连线
+    var board = new Array(N * N).fill(0);
+    var moves = [];
+    var sample = [[7, 3], [7, 4], [7, 5], [7, 6]];
+    sample.forEach(function (s, i) { board[s[0] * N + s[1]] = 1; moves.push({ r: s[0], c: s[1], p: 1 }); });
+    [[6, 7], [8, 7], [5, 8]].forEach(function (s) { board[s[0] * N + s[1]] = 2; });
+    moves.push({ r: 7, c: 7, p: 1 }); board[7 * N + 7] = 1; // 最后一手完成五连
+    state = { id: 'DEMO', board: board, moves: moves, turn: 2, status: 'over', winner: 1,
+      winLine: [[7, 3], [7, 4], [7, 5], [7, 6], [7, 7]],
+      players: [{ color: 1, name: '黑棋', online: true }, { color: 2, name: '白棋', online: true }],
+      undoPending: false, undoFrom: null };
+    document.getElementById('roomTag').textContent = '房间 DEMO';
+    resize(); showOver();
+    document.getElementById('sharePanel').classList.add('hidden');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+</script>
+</body>
+</html>
