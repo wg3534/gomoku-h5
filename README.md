@@ -37,7 +37,7 @@ npm start          # 默认 http://localhost:3000
 
 ```bash
 cd gomoku-h5
-git remote add origin https://github.com/你的用户名/gomoku-h5.git
+git remote add origin https://github.com/wg3534/gomoku-h5.git
 git branch -M main
 git push -u origin main
 ```
@@ -46,7 +46,7 @@ git push -u origin main
 
 把下面链接里的仓库地址换成你自己的，打开后登录免费的 Render 账号，点 **Create Web Service** 即可：
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/你的用户名/gomoku-h5)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/wg3534/gomoku-h5)
 
 上线后得到 `https://gomoku-h5-xxxx.onrender.com`，发到微信即可玩。
 
